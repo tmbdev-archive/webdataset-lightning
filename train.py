@@ -202,7 +202,7 @@ def main(args):
         args.workers = int(args.workers / max(1, args.gpus))
     data = ImagenetData(**vars(args))
     model = ImageClassifier(**vars(args))
-    plugin = plugins.DDPPlugin(find_unused_parameters=False, **vars(args))
+    plugin = plugins.DDPPlugin(find_unused_parameters=False, num_nodes=args.num_nodes)
     if args.verbose:
         pp(vars(args))
     trainer = pl.Trainer.from_argparse_args(args, plugins=plugin)
