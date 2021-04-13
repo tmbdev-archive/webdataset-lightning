@@ -27,15 +27,15 @@ def identity(x):
 
 
 class ImagenetData(pl.LightningDataModule):
-    def __init__(self, training_urls=None, val_urls=None, batch_size=64, num_workers=4, bucket=None):
+    def __init__(self, shards=None, valshards=None, batch_size=64, workers=4, bucket=None, **kw):
         super().__init__(self)
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        self.training_urls = os.path.join(bucket, training_urls)
+        self.training_urls = os.path.join(bucket, shards)
         print("training_urls = ", self.training_urls)
-        self.val_urls = os.path.join(bucket, val_urls)
+        self.val_urls = os.path.join(bucket, valshards)
         print("val_urls = ", self.val_urls)
         self.batch_size = batch_size
-        self.num_workers = num_workers
+        self.num_workers = workers
         self.world_size = 0
         if torch.distributed.is_initialized():
             self.world_size = torch.distributed.get_world_size()
@@ -105,6 +105,7 @@ class ImagenetData(pl.LightningDataModule):
     @staticmethod
     def add_loader_specific_args(parser):
         parser.add_argument("-b", "--batch-size", type=int, default=128)
+        parser.add_argument("--workers", type=int, default=6)
         parser.add_argument("--bucket", default="./shards")
         parser.add_argument("--shards", default="imagenet-train-{000000..000146}.tar")
         parser.add_argument("--valshards", default="imagenet-val-{000000..000006}.tar")
@@ -197,12 +198,10 @@ def main(args):
     if args.accelerator in ["ddp"]:
         args.batch_size = int(args.batch_size / max(1, args.gpus))
         args.workers = int(args.workers / max(1, args.gpus))
+    data = ImagenetData(**vars(args))
     model = ImageClassifier(**vars(args))
     plugin = plugins.DDPPlugin(find_unused_parameters=False)
     trainer = pl.Trainer.from_argparse_args(args, plugins=plugin)
-    data = ImagenetData(
-        batch_size=args.batch_size, training_urls=args.shards, val_urls=args.valshards, bucket=args.bucket
-    )
     if args.evaluate:
         trainer.test(model, data)
     else:
