@@ -3,11 +3,15 @@
 # A simple example of using WebDataset for ImageNet training.
 # This uses the PyTorch Lightning framework.
 
+# Loosly based on 
+# https://github.com/PyTorchLightning/pytorch-lightning/blob/master/pl_examples/domain_templates/imagenet.py
+
 import os.path
 import torch
 import torchvision
 from torchvision import transforms
 from torch.nn import functional as F
+from torch.optim import lr_scheduler
 from argparse import ArgumentParser
 
 import pytorch_lightning as pl
@@ -15,17 +19,17 @@ from pytorch_lightning import plugins
 import webdataset as wds
 
 
+torchvision
+
+
 def identity(x):
     return x
 
 
 class ImagenetData(pl.LightningDataModule):
-
     def __init__(self, training_urls=None, val_urls=None, batch_size=64, num_workers=4, bucket=None):
         super().__init__(self)
-        self.normalize = transforms.Normalize(
-            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-        )
+        self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         self.training_urls = os.path.join(bucket, training_urls)
         print("training_urls = ", self.training_urls)
         self.val_urls = os.path.join(bucket, val_urls)
@@ -77,7 +81,10 @@ class ImagenetData(pl.LightningDataModule):
         )
 
         loader = wds.WebLoader(
-            dataset, batch_size=None, shuffle=False, num_workers=self.num_workers,
+            dataset,
+            batch_size=None,
+            shuffle=False,
+            num_workers=self.num_workers,
         )
         loader.length = dataset_size // self.batch_size
 
@@ -105,52 +112,106 @@ class ImagenetData(pl.LightningDataModule):
 
 
 class ImageClassifier(pl.LightningModule):
-
-    def __init__(self, learning_rate=0.1, model="resnet18"):
+    def __init__(self, learning_rate=0.1, momentum=0.9, weight_decay=1e-4, model="resnet18", **kw):
         super().__init__()
         self.save_hyperparameters()
-        self.learning_rate = learning_rate
-        torchvision
         self.model = eval(f"torchvision.models.{model}")()
 
     def forward(self, inputs):
         return self.model(inputs)
 
     def training_step(self, batch, batch_idx):
-        x, y = batch
-        output = self(x)
-        loss = F.cross_entropy(output, y)
-        err = (output.argmax(1) != y).sum() / float(len(y))
-        self.log('train_loss', loss, on_step=True, on_epoch=True, sync_dist=True)
-        self.log('train_err', err, on_step=True, on_epoch=True, sync_dist=True)
-        return dict(loss=loss, err=err)
+        images, target = batch
+        output = self(images)
+        loss_train = F.cross_entropy(output, target)
+        acc1, acc5 = self.__accuracy(output, target, topk=(1, 5))
+        self.log("train_loss", loss_train, on_step=True, on_epoch=True, logger=True)
+        self.log("train_acc1", acc1, on_step=True, prog_bar=True, on_epoch=True, logger=True)
+        self.log("train_acc5", acc5, on_step=True, on_epoch=True, logger=True)
+        return loss_train
 
     def validation_step(self, batch, batch_idx):
-        return self.training_step(batch, batch_idx)
+        images, target = batch
+        output = self(images)
+        loss_val = F.cross_entropy(output, target)
+        acc1, acc5 = self.__accuracy(output, target, topk=(1, 5))
+        self.log("val_loss", loss_val, on_step=True, on_epoch=True)
+        self.log("val_acc1", acc1, on_step=True, prog_bar=True, on_epoch=True)
+        self.log("val_acc5", acc5, on_step=True, on_epoch=True)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.SGD(self.parameters(), lr=self.hparams.learning_rate, momentum=0.9)
-        schedule = torch.optim.lr_scheduler.MultiStepLR(optimizer, [10, 50, 100, 150, 200], gamma=0.1)
-        # optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
-        # schedule = torch.optim.lr_scheduler.MultiStepLR(optimizer, [10, 50, 100, 150, 200], gamma=0.1)
-        return [optimizer], [schedule]
+        optimizer = torch.optim.SGD(
+            self.parameters(),
+            lr=self.hparams.learning_rate,
+            momentum=self.hparams.momentum,
+            weight_decay=self.hparams.weight_decay,
+        )
+        scheduler = lr_scheduler.LambdaLR(optimizer, lambda epoch: 0.1 ** (epoch // 30))
+        return [optimizer], [scheduler]
+
+    def test_dataloader(self):
+        return self.val_dataloader()
+
+    def test_step(self, *args, **kwargs):
+        return self.validation_step(*args, **kwargs)
+
+    def test_epoch_end(self, *args, **kwargs):
+        outputs = self.validation_epoch_end(*args, **kwargs)
+
+        def substitute_val_keys(out):
+            return {k.replace("val", "test"): v for k, v in out.items()}
+
+        outputs = {
+            "test_loss": outputs["val_loss"],
+            "progress_bar": substitute_val_keys(outputs["progress_bar"]),
+            "log": substitute_val_keys(outputs["log"]),
+        }
+        return outputs
+
+    @staticmethod
+    def __accuracy(output, target, topk=(1,)):
+        """Computes the accuracy over the k top predictions for the specified values of k"""
+        with torch.no_grad():
+            maxk = max(topk)
+            batch_size = target.size(0)
+
+            _, pred = output.topk(maxk, 1, True, True)
+            pred = pred.t()
+            correct = pred.eq(target.view(1, -1).expand_as(pred))
+
+            res = []
+            for k in topk:
+                correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
+                res.append(correct_k.mul_(100.0 / batch_size))
+            return res
 
     @staticmethod
     def add_model_specific_args(parser):
         parser.add_argument("--learning_rate", type=float, default=0.1)
+        parser.add_argument("--momentum", type=float, default=0.9)
+        parser.add_argument("--weight_decay", type=float, default=1e-4)
         return parser
 
 
 def main(args):
-    model = ImageClassifier(learning_rate=args.learning_rate)
+    if args.accelerator in ["ddp"]:
+        args.batch_size = int(args.batch_size / max(1, args.gpus))
+        args.workers = int(args.workers / max(1, args.gpus))
+    model = ImageClassifier(**vars(args))
     plugin = plugins.DDPPlugin(find_unused_parameters=False)
     trainer = pl.Trainer.from_argparse_args(args, plugins=plugin)
-    data = ImagenetData(batch_size=args.batch_size, training_urls=args.shards, val_urls=args.valshards, bucket=args.bucket)
-    trainer.fit(model, data)
+    data = ImagenetData(
+        batch_size=args.batch_size, training_urls=args.shards, val_urls=args.valshards, bucket=args.bucket
+    )
+    if args.evaluate:
+        trainer.test(model, data)
+    else:
+        trainer.fit(model, data)
 
 
 if __name__ == "__main__":
     parser = ArgumentParser()
+    parser.add_argument("--evaluate", action="store_true")
     parser = pl.Trainer.add_argparse_args(parser)
     parser = ImagenetData.add_loader_specific_args(parser)
     parser = ImageClassifier.add_model_specific_args(parser)
