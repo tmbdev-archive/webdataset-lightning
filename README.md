@@ -31,5 +31,4 @@ $ rsync -av shards webserver:/var/www/html/shards
 $ ./run train --gpus 2 --bucket http://webserver/shards
 ```
 
-The [AIStore server](http://github.com/nvidia/aistore) is a high performance
-server that works very well with WebDataset.
+The [AIStore server](http://github.com/nvidia/aistore) is a high performance S3-compatible storage server (and web server) that works very with WebDataset.
