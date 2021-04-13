@@ -1,0 +1,7 @@
+numpy
+scipy
+torch
+torchvision
+pytorch-lightning
+tensorboard
+-e git://github.com/tmbdev/webdataset.git#egg=webdataset
