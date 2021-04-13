@@ -20,7 +20,7 @@ $ ./run makeshards  # create shards
 Run the training script:
 
 ```Bash
-$ ./run train  # run the training jobs using PyTorch lightning
+$ ./run train -b 128 --gpus 2 # run the training jobs using PyTorch lightning
 ```
 
 Of course, for local data, there is no need to go through this trouble. However,
@@ -28,7 +28,7 @@ you can now easily train remotely, for example by putting the data on a webserve
 
 ```Bash
 $ rsync -av shards webserver:/var/www/html/shards
-$ ./run train --bucket http://webserver/shards
+$ ./run train --gpus 2 --bucket http://webserver/shards
 ```
 
 The [AIStore server](http://github.com/nvidia/aistore) is a high performance
