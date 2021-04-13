@@ -207,15 +207,16 @@ def print_distributed_info():
 
 
 def main(args):
+    if args.verbose:
+        pp(vars(args))
     if args.accelerator in ["ddp"]:
         args.batch_size = int(args.batch_size / max(1, args.gpus))
         args.workers = int(args.workers / max(1, args.gpus))
     data = ImagenetData(**vars(args))
     model = ImageClassifier(**vars(args))
-    plugin = plugins.DDPPlugin(find_unused_parameters=False, num_nodes=args.num_nodes)
-    if args.verbose:
-        pp(vars(args))
-    trainer = pl.Trainer.from_argparse_args(args, plugins=plugin)
+    # plugin = plugins.DDPPlugin(find_unused_parameters=False, num_nodes=args.num_nodes)
+    # trainer = pl.Trainer.from_argparse_args(args, plugins=plugin)
+    trainer = pl.Trainer.from_argparse_args(args)
     print_distributed_info()
     if args.evaluate:
         trainer.test(model, data)
