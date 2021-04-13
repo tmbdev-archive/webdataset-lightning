@@ -196,6 +196,16 @@ class ImageClassifier(pl.LightningModule):
         return parser
 
 
+def print_distributed_info():
+    if not torch.distributed.is_available():
+        print("distributed not available")
+        return
+    if not torch.distributed.is_initialized():
+        print("distributed not initialized")
+        return
+    print("backend", torch.distributed.get_backend(), "world_size", torch.distributed.get_world_size(), "rank", torch.distributed.get_rank())
+
+
 def main(args):
     if args.accelerator in ["ddp"]:
         args.batch_size = int(args.batch_size / max(1, args.gpus))
@@ -206,6 +216,7 @@ def main(args):
     if args.verbose:
         pp(vars(args))
     trainer = pl.Trainer.from_argparse_args(args, plugins=plugin)
+    print_distributed_info()
     if args.evaluate:
         trainer.test(model, data)
     else:
