@@ -14,7 +14,7 @@ parser.add_argument("--splits", default="train,val", help="which splits to write
 parser.add_argument(
     "--filekey", action="store_true", help="use file as key (default: index)"
 )
-parser.add_argument("--maxsize", type=float, default=3e8)
+parser.add_argument("--maxsize", type=float, default=1e9)
 parser.add_argument("--maxcount", type=float, default=100000)
 parser.add_argument(
     "--shards", default="./shards", help="directory where shards are written"

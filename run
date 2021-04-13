@@ -1,5 +1,6 @@
 #!/bin/bash
 
+nshards=147
 
 die() {
     echo "ERROR: $*"
@@ -9,7 +10,7 @@ die() {
 
 check_shards() {
     numshards=$(ls shards/imagenet-train-??????.tar | wc -l)
-    if [[ $numshards != 490 ]]; then die "wrong # shards in ./shards (got: $numshards, wanted: 490)"; fi
+    if [[ $numshards != $nshards ]]; then die "wrong # shards in ./shards (got: $numshards, wanted: $nshards)"; fi
 }
 
 
