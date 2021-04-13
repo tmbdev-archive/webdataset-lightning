@@ -3,7 +3,7 @@
 # A simple example of using WebDataset for ImageNet training.
 # This uses the PyTorch Lightning framework.
 
-# Loosly based on 
+# Loosly based on
 # https://github.com/PyTorchLightning/pytorch-lightning/blob/master/pl_examples/domain_templates/imagenet.py
 
 import os.path
@@ -13,6 +13,7 @@ from torchvision import transforms
 from torch.nn import functional as F
 from torch.optim import lr_scheduler
 from argparse import ArgumentParser
+import pprint
 
 import pytorch_lightning as pl
 from pytorch_lightning import plugins
@@ -20,6 +21,7 @@ import webdataset as wds
 
 
 torchvision
+pp = pprint.PrettyPrinter(indent=4, depth=2).pprint
 
 
 def identity(x):
@@ -200,7 +202,9 @@ def main(args):
         args.workers = int(args.workers / max(1, args.gpus))
     data = ImagenetData(**vars(args))
     model = ImageClassifier(**vars(args))
-    plugin = plugins.DDPPlugin(find_unused_parameters=False)
+    plugin = plugins.DDPPlugin(find_unused_parameters=False, **vars(args))
+    if args.verbose:
+        pp(vars(args))
     trainer = pl.Trainer.from_argparse_args(args, plugins=plugin)
     if args.evaluate:
         trainer.test(model, data)
@@ -211,6 +215,8 @@ def main(args):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--evaluate", action="store_true")
+    parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--num-nodes", type=int, default=1)
     parser = pl.Trainer.add_argparse_args(parser)
     parser = ImagenetData.add_loader_specific_args(parser)
     parser = ImageClassifier.add_model_specific_args(parser)
