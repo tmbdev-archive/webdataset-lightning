@@ -17,6 +17,7 @@ import pprint
 
 import pytorch_lightning as pl
 from pytorch_lightning import plugins
+from pytorch_lightning.plugins import environments
 import webdataset as wds
 
 
@@ -207,10 +208,59 @@ def print_distributed_info():
     if not torch.distributed.is_initialized():
         print("distributed not initialized")
         return
-    print("backend", torch.distributed.get_backend(), "world_size", torch.distributed.get_world_size(), "rank", torch.distributed.get_rank())
+    print(
+        "backend",
+        torch.distributed.get_backend(),
+        "world_size",
+        torch.distributed.get_world_size(),
+        "rank",
+        torch.distributed.get_rank(),
+    )
+
+
+def I(value, name):
+    print(name, value)
+    return value
+
+
+class MyCluster(environments.ClusterEnvironment):
+    def __init__(self):
+        super().__init__()
+        self._master_addr = I(os.environ["MASTER_ADDR"], "MASTER_ADDR")
+        self._master_port = I(int(os.environ["MASTER_PORT"]), "MASTER_PORT")
+        self._world_size = I(int(os.environ["WORLD_SIZE"]), "WORLD_SIZE")
+        self._global_rank = I(int(os.environ["RANK"]), "RANK")
+
+    def creates_childern(self):
+        return False
+
+    def master_address(self):
+        return self._master_addr
+
+    def master_port(self):
+        return self._master_port
+
+    def world_size(self):
+        return I(self._world_size, "world_size")
+
+    def global_rank(self):
+        return self._global_rank
+
+    def set_world_size(self, *args):
+        raise Exception()
+
+    def set_global_rank(self, *args):
+        raise Exception()
+
+    def local_rank(self):
+        return I(0, "LOCAL_RANK")
+
+    def node_rank(self):
+        return self._global_rank
 
 
 def main(args):
+    mycluster = MyCluster()
     if args.verbose:
         pp(vars(args))
     if args.accelerator in ["ddp"]:
@@ -218,10 +268,12 @@ def main(args):
         args.workers = int(args.workers / max(1, args.gpus))
     data = ImagenetData(**vars(args))
     model = ImageClassifier(**vars(args))
-    # plugin = plugins.DDPPlugin(find_unused_parameters=False, num_nodes=args.num_nodes)
-    # trainer = pl.Trainer.from_argparse_args(args, plugins=plugin)
-    trainer = pl.Trainer.from_argparse_args(args)
-    print_distributed_info()
+    if args.mycluster:
+        print("custom cluster creation")
+        ddp = plugins.DDPPlugin(find_unused_parameters=False, num_nodes=args.num_nodes)
+        trainer = pl.Trainer.from_argparse_args(args, plugins=[ddp, mycluster])
+    else:
+        trainer = pl.Trainer.from_argparse_args(args)
     if args.evaluate:
         trainer.test(model, data)
     else:
@@ -232,6 +284,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--mycluster", action="store_true")
     parser = pl.Trainer.add_argparse_args(parser)
     parser = ImagenetData.add_loader_specific_args(parser)
     parser = ImageClassifier.add_model_specific_args(parser)
