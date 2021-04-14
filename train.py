@@ -218,18 +218,14 @@ def print_distributed_info():
     )
 
 
-def I(value, name):
-    print(name, value)
-    return value
-
-
 class MyCluster(environments.ClusterEnvironment):
+
     def __init__(self):
         super().__init__()
-        self._master_addr = I(os.environ["MASTER_ADDR"], "MASTER_ADDR")
-        self._master_port = I(int(os.environ["MASTER_PORT"]), "MASTER_PORT")
-        self._world_size = I(int(os.environ["WORLD_SIZE"]), "WORLD_SIZE")
-        self._global_rank = I(int(os.environ["RANK"]), "RANK")
+        self._master_addr = os.environ["MASTER_ADDR"]
+        self._master_port = int(os.environ["MASTER_PORT"])
+        self._world_size = int(os.environ["WORLD_SIZE"])
+        self._global_rank = int(os.environ["RANK"])
 
     def creates_childern(self):
         return False
@@ -241,7 +237,7 @@ class MyCluster(environments.ClusterEnvironment):
         return self._master_port
 
     def world_size(self):
-        return I(self._world_size, "world_size")
+        return self._world_size
 
     def global_rank(self):
         return self._global_rank
@@ -253,7 +249,7 @@ class MyCluster(environments.ClusterEnvironment):
         raise Exception()
 
     def local_rank(self):
-        return I(0, "LOCAL_RANK")
+        return 0
 
     def node_rank(self):
         return self._global_rank
@@ -284,7 +280,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--mycluster", action="store_true")
+    parser.add_argument("--mycluster", action="store_true", help="use PyTorch WORLD_SIZE/RANK for distribution")
     parser = pl.Trainer.add_argparse_args(parser)
     parser = ImagenetData.add_loader_specific_args(parser)
     parser = ImageClassifier.add_model_specific_args(parser)
