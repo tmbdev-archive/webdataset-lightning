@@ -256,7 +256,8 @@ class MyCluster(environments.ClusterEnvironment):
 
 
 def main(args):
-    mycluster = MyCluster()
+    if args.mycluster:
+        mycluster = MyCluster()
     if args.verbose:
         pp(vars(args))
     if args.accelerator in ["ddp"]:
