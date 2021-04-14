@@ -142,6 +142,10 @@ class ImageClassifier(pl.LightningModule):
         self.log("val_acc1", acc1, on_step=True, prog_bar=True, on_epoch=True)
         self.log("val_acc5", acc5, on_step=True, on_epoch=True)
 
+    @staticmethod
+    def schedule(epoch):
+        return 0.1 ** (epoch // 30)
+
     def configure_optimizers(self):
         optimizer = torch.optim.SGD(
             self.parameters(),
@@ -149,7 +153,7 @@ class ImageClassifier(pl.LightningModule):
             momentum=self.hparams.momentum,
             weight_decay=self.hparams.weight_decay,
         )
-        scheduler = lr_scheduler.LambdaLR(optimizer, lambda epoch: 0.1 ** (epoch // 30))
+        scheduler = lr_scheduler.LambdaLR(optimizer, ImageClassifier.schedule)
         return [optimizer], [scheduler]
 
     def test_dataloader(self):
