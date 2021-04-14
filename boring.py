@@ -147,6 +147,7 @@ def test_run():
         limit_val_batches=1,
         max_epochs=1,
         weights_summary=None,
+        num_nodes=int(os.environ.get("num_nodes", 1)),
     )
     trainer.fit(model, train_data, val_data)
     trainer.test(test_dataloaders=test_data)
