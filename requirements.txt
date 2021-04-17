@@ -1,3 +1,4 @@
-pytorch-lightning
+# pytorch-lightning
 tensorboard
 -e git://github.com/tmbdev/webdataset.git#egg=webdataset
+-e git://github.com/PyTorchLightning/pytorch-lightning.git#egg=pytorch_lightning

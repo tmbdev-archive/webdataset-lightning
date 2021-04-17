@@ -218,46 +218,7 @@ def print_distributed_info():
     )
 
 
-class MyCluster(environments.ClusterEnvironment):
-
-    def __init__(self):
-        super().__init__()
-        self._master_addr = os.environ["MASTER_ADDR"]
-        self._master_port = int(os.environ["MASTER_PORT"])
-        self._world_size = int(os.environ["WORLD_SIZE"])
-        self._global_rank = int(os.environ["RANK"])
-
-    def creates_childern(self):
-        return False
-
-    def master_address(self):
-        return self._master_addr
-
-    def master_port(self):
-        return self._master_port
-
-    def world_size(self):
-        return self._world_size
-
-    def global_rank(self):
-        return self._global_rank
-
-    def set_world_size(self, *args):
-        raise Exception()
-
-    def set_global_rank(self, *args):
-        raise Exception()
-
-    def local_rank(self):
-        return 0
-
-    def node_rank(self):
-        return self._global_rank
-
-
 def main(args):
-    if args.mycluster:
-        mycluster = MyCluster()
     if args.verbose:
         pp(vars(args))
     if args.accelerator in ["ddp"]:
@@ -265,12 +226,15 @@ def main(args):
         args.workers = int(args.workers / max(1, args.gpus))
     data = ImagenetData(**vars(args))
     model = ImageClassifier(**vars(args))
+    plugs = []
     if args.mycluster:
-        print("custom cluster creation")
+        for key in "MASTER_ADDR MASTER_PORT WORLD_SIZE RANK".split():
+            assert key in os.environ, f"{key} must be in environment"
+        args.num_nodes = int(os.environ["WORLD_SIZE"])
+        env = environments.TorchElasticEnvironment()
         ddp = plugins.DDPPlugin(find_unused_parameters=False, num_nodes=args.num_nodes)
-        trainer = pl.Trainer.from_argparse_args(args, plugins=[ddp, mycluster])
-    else:
-        trainer = pl.Trainer.from_argparse_args(args)
+        plugs += [env, ddp]
+    trainer = pl.Trainer.from_argparse_args(args, plugins=plugs)
     if args.evaluate:
         trainer.test(model, data)
     else:
