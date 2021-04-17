@@ -227,12 +227,14 @@ def main(args):
     data = ImagenetData(**vars(args))
     model = ImageClassifier(**vars(args))
     plugs = []
-    if args.mycluster:
+    if args.mycluster != "":
         for key in "MASTER_ADDR MASTER_PORT WORLD_SIZE RANK".split():
             assert key in os.environ, f"{key} must be in environment"
         args.num_nodes = int(os.environ["WORLD_SIZE"])
+        rank = int(os.environ["RANK"])
         env = environments.TorchElasticEnvironment()
         ddp = plugins.DDPPlugin(find_unused_parameters=False, num_nodes=args.num_nodes)
+        torch.distributed.init_process_group(args.mycluster, rank=rank, world_size=args.num_nodes)
         plugs += [env, ddp]
     trainer = pl.Trainer.from_argparse_args(args, plugins=plugs)
     if args.evaluate:
@@ -245,7 +247,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--mycluster", action="store_true", help="use PyTorch WORLD_SIZE/RANK for distribution")
+    parser.add_argument("--mycluster", default="")
     parser = pl.Trainer.add_argparse_args(parser)
     parser = ImagenetData.add_loader_specific_args(parser)
     parser = ImageClassifier.add_model_specific_args(parser)
