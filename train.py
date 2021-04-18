@@ -1,7 +1,7 @@
 # -*- Python -*-
 
-# A simple example of using WebDataset for ImageNet training.
-# This uses the PyTorch Lightning framework.
+# A simple example of using WebDataset high performance distributed storage
+# for ImageNet training.  This uses the PyTorch Lightning framework.
 
 # Loosely based on
 # https://github.com/PyTorchLightning/pytorch-lightning/blob/master/pl_examples/domain_templates/imagenet.py
@@ -16,8 +16,6 @@ from argparse import ArgumentParser
 import pprint
 
 import pytorch_lightning as pl
-from pytorch_lightning import plugins
-from pytorch_lightning.plugins import environments
 import webdataset as wds
 
 
