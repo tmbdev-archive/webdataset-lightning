@@ -3,7 +3,7 @@
 # A simple example of using WebDataset for ImageNet training.
 # This uses the PyTorch Lightning framework.
 
-# Loosly based on
+# Loosely based on
 # https://github.com/PyTorchLightning/pytorch-lightning/blob/master/pl_examples/domain_templates/imagenet.py
 
 import os.path
