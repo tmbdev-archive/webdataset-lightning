@@ -216,7 +216,7 @@ def print_distributed_info():
     )
 
 
-class MyCluster(ClusterEnvironment):
+class MyCluster(pl.plugins.environments.ClusterEnvironment):
     def __init__(self):
         super().__init__()
 
@@ -247,6 +247,7 @@ class MyCluster(ClusterEnvironment):
     def node_rank(self) -> int:
         return 0
 
+
 def main(args):
     if args.verbose:
         pp(vars(args))
@@ -258,15 +259,11 @@ def main(args):
     plugs = []
     kw = {}
     if args.mycluster:
-        tmpdir="/tmp"
-        trainer = Trainer(
-            accelerator="ddp",
-            default_root_dir=tmpdir,
-            num_nodes=2,
-            gpus=1,
-            plugins=[MyCluster()]
+        tmpdir = "/tmp"
+        trainer = pl.Trainer(
+            accelerator="ddp", default_root_dir=tmpdir, num_nodes=2, gpus=1, plugins=[MyCluster()]
         )
-        assert isinstance(trainer.training_type_plugin, DDPPlugin)
+        assert isinstance(trainer.training_type_plugin, pl.DDPPlugin)
     else:
         trainer = pl.Trainer.from_argparse_args(args, plugins=plugs)
     if args.evaluate:
