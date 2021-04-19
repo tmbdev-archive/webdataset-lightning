@@ -276,7 +276,6 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--mycluster", action="store_true")
     parser = pl.Trainer.add_argparse_args(parser)
     parser = ImagenetData.add_loader_specific_args(parser)
