@@ -263,7 +263,7 @@ def main(args):
         trainer = pl.Trainer(
             accelerator="ddp", default_root_dir=tmpdir, num_nodes=2, gpus=1, plugins=[MyCluster()]
         )
-        assert isinstance(trainer.training_type_plugin, pl.DDPPlugin)
+        assert isinstance(trainer.training_type_plugin, pl.plugins.DDPPlugin)
     else:
         trainer = pl.Trainer.from_argparse_args(args, plugins=plugs)
     if args.evaluate:
