@@ -257,13 +257,14 @@ def main(args):
     data = ImagenetData(**vars(args))
     model = ImageClassifier(**vars(args))
     plugs = []
-    kw = {}
     if args.mycluster:
+        print("*** using MyCluster ***")
         tmpdir = "/tmp"
         trainer = pl.Trainer(
             accelerator="ddp", default_root_dir=tmpdir, num_nodes=2, gpus=1, plugins=[MyCluster()]
         )
         assert isinstance(trainer.training_type_plugin, pl.plugins.DDPPlugin)
+        print("***", trainer)
     else:
         trainer = pl.Trainer.from_argparse_args(args, plugins=plugs)
     if args.evaluate:
