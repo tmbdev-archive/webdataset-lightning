@@ -216,6 +216,37 @@ def print_distributed_info():
     )
 
 
+class MyCluster(ClusterEnvironment):
+    def __init__(self):
+        super().__init__()
+
+    def creates_children(self) -> bool:
+        return True
+
+    def master_address(self) -> str:
+        return "192.168.1.3"
+
+    def master_port(self) -> int:
+        return 1234
+
+    def world_size(self) -> int:
+        return 2
+
+    def set_world_size(self, size: int) -> None:
+        pass
+
+    def global_rank(self) -> int:
+        return 0
+
+    def set_global_rank(self, rank: int) -> None:
+        pass
+
+    def local_rank(self) -> int:
+        return 0
+
+    def node_rank(self) -> int:
+        return 0
+
 def main(args):
     if args.verbose:
         pp(vars(args))
@@ -225,7 +256,19 @@ def main(args):
     data = ImagenetData(**vars(args))
     model = ImageClassifier(**vars(args))
     plugs = []
-    trainer = pl.Trainer.from_argparse_args(args, plugins=plugs)
+    kw = {}
+    if args.mycluster:
+        tmpdir="/tmp"
+        trainer = Trainer(
+            accelerator="ddp",
+            default_root_dir=tmpdir,
+            num_nodes=2,
+            gpus=1,
+            plugins=[MyCluster()]
+        )
+        assert isinstance(trainer.training_type_plugin, DDPPlugin)
+    else:
+        trainer = pl.Trainer.from_argparse_args(args, plugins=plugs)
     if args.evaluate:
         trainer.test(model, data)
     else:
@@ -236,6 +279,8 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--mycluster", action="store_true")
     parser = pl.Trainer.add_argparse_args(parser)
     parser = ImagenetData.add_loader_specific_args(parser)
     parser = ImageClassifier.add_model_specific_args(parser)
