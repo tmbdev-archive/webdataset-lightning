@@ -47,7 +47,7 @@ cmd_makeshards() {  # make shards from ImageNet data
 cmd_twonode() {
     master=$1; shift
     rank=$1; shift
-    env MASTER_ADDR=$master MASTER_PORT=${port:-9988} LOCAL_RANK=$rank python3 train.py --accelerator ddp --num_nodes 2 --gpus 1
+    env MASTER_ADDR=$master MASTER_PORT=${port:-9988} NODE_RANK=$rank python3 train.py --accelerator ddp --num_nodes 2 --gpus 1
 }
 
 
