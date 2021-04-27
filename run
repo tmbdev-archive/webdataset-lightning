@@ -21,6 +21,7 @@ cmd_clean() { # remove temporary files
 }
 
 cmd_venv() { # set up a virtualenv
+    set -e
     test -d venv || python3 -m venv venv
     source venv/bin/activate
     pip3 install -U pip
@@ -30,12 +31,14 @@ cmd_venv() { # set up a virtualenv
 }
 
 cmd_train() { # run training using PyTorch lightning
+    set -e
     check_shards
     source venv/bin/activate
     python3 train.py "$@"
 }
 
 cmd_makeshards() {  # make shards from ImageNet data
+    set -e
     test -d ./data/train || die "./data/train: does not exist"
     test -d ./data/val || die "./data/val: does not exist"
     test -d ./shards || die "./shards: must exist and be directory"
@@ -45,8 +48,10 @@ cmd_makeshards() {  # make shards from ImageNet data
 
 
 cmd_twonode() {
+    set -e
     master=$1; shift
     rank=$1; shift
+    source venv/bin/activate
     env MASTER_ADDR=$master MASTER_PORT=${port:-9988} NODE_RANK=$rank python3 train.py --accelerator ddp --num_nodes 2 --gpus 1
 }
 
