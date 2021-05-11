@@ -6,21 +6,60 @@
 # Loosely based on
 # https://github.com/PyTorchLightning/pytorch-lightning/blob/master/pl_examples/domain_templates/imagenet.py
 
+import functools
 import os.path
-import torch
-import torchvision
-from torchvision import transforms
-from torch.nn import functional as F
-from torch.optim import lr_scheduler
-from argparse import ArgumentParser
 import pprint
+from argparse import ArgumentParser
 
 import pytorch_lightning as pl
+import torch
+from torch.utils import data
+import torchvision
 import webdataset as wds
-
+from torch.nn import functional as F
+from torch.optim import lr_scheduler
+from torchvision import transforms
 
 torchvision
 pp = pprint.PrettyPrinter(indent=4, depth=2).pprint
+
+
+def debug_nccl():
+    os.environ["NCCL_DEBUG"] = "INFO"
+    os.environ["NCCL_DEBUG_SUBSYS"] = "COLL"
+
+
+def configure_nccl():
+    os.environ["NCCL_IB_DISABLE"] = "1"
+    if "NCCL_SOCKET_IFNAME" not in os.environ:
+        mainif = os.popen("""/sbin/route -n | awk '$1=="0.0.0.0"{print $8; exit}'""").read().strip()
+        os.environ["NCCL_SOCKET_IFNAME"] = mainif
+    print(f"setting NCCL_SOCKET_IFNAME to {mainif}")
+
+
+def itrace(f):
+    @functools.wraps(f)
+    def g(*args, **kw):
+        result = f(*args, **kw)
+        print(f"{f.__name__}({args}, {kw}) => {result}")
+        return result
+
+    return g
+
+
+class FakeData(data.IterableDataset):
+    def __init__(self, batchsize=64, mode="train"):
+        super().__init__()
+        self.batchsize = batchsize
+        size = 1281000 if mode == "train" else 50000
+        self.size = size // batchsize
+
+    def __len__(self):
+        return self.size
+
+    def __iter__(self):
+        for i in range(self.size):
+            yield torch.randn((self.batchsize, 3, 224, 224)), torch.zeros(self.batchsize, dtype=torch.int64)
 
 
 def identity(x):
@@ -63,6 +102,10 @@ class ImagenetData(pl.LightningDataModule):
             )
 
     def make_loader(self, urls, mode="train"):
+
+        if urls.startswith("fake:"):
+            return FakeData(batchsize=self.batch_size, mode=mode)
+
         if mode == "train":
             dataset_size = 1281167
             shuffle = 5000
@@ -196,6 +239,7 @@ class ImageClassifier(pl.LightningModule):
         parser.add_argument("--learning_rate", type=float, default=0.1)
         parser.add_argument("--momentum", type=float, default=0.9)
         parser.add_argument("--weight_decay", type=float, default=1e-4)
+        parser.add_argument("--model", type=str, default="resnet18")
         return parser
 
 
@@ -216,7 +260,7 @@ def print_distributed_info():
     )
 
 
-class MyCluster(pl.plugins.environments.ClusterEnvironment):
+class SimpleCluster(pl.plugins.environments.ClusterEnvironment):
     def __init__(self):
         super().__init__()
 
@@ -224,22 +268,22 @@ class MyCluster(pl.plugins.environments.ClusterEnvironment):
         return True
 
     def master_address(self) -> str:
-        return "192.168.1.3"
+        return os.environ["MASTER_ADDR"]
 
     def master_port(self) -> int:
-        return 1234
+        return int(os.environ.get("MASTER_PORT", 25666))
 
     def world_size(self) -> int:
-        return 2
+        return int(os.environ["WORLD_SIZE"])
 
     def set_world_size(self, size: int) -> None:
-        pass
+        print(f"set_world_size ignored wants: {size} gets: {self.world_size()}")
 
     def global_rank(self) -> int:
-        return 0
+        return int(os.environ["RANK"])
 
     def set_global_rank(self, rank: int) -> None:
-        pass
+        print(f"set_global_rank ignored wants: {rank} gets: {self.global_rank()}")
 
     def local_rank(self) -> int:
         return 0
@@ -257,16 +301,9 @@ def main(args):
     data = ImagenetData(**vars(args))
     model = ImageClassifier(**vars(args))
     plugs = []
-    if args.mycluster:
-        print("*** using MyCluster ***")
-        tmpdir = "/tmp"
-        trainer = pl.Trainer(
-            accelerator="ddp", default_root_dir=tmpdir, num_nodes=2, gpus=1, plugins=[MyCluster()]
-        )
-        assert isinstance(trainer.training_type_plugin, pl.plugins.DDPPlugin)
-        print("***", trainer)
-    else:
-        trainer = pl.Trainer.from_argparse_args(args, plugins=plugs)
+    if args.accelerator == "ddp":
+        plugs.append(SimpleCluster())
+    trainer = pl.Trainer.from_argparse_args(args, plugins=plugs)
     if args.evaluate:
         trainer.test(model, data)
     else:
@@ -277,9 +314,14 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--evaluate", action="store_true")
     parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--mycluster", action="store_true")
+    parser.add_argument("--ncclfix", action="store_false")
+    parser.add_argument("--nccldebug", action="store_true")
     parser = pl.Trainer.add_argparse_args(parser)
     parser = ImagenetData.add_loader_specific_args(parser)
     parser = ImageClassifier.add_model_specific_args(parser)
     args = parser.parse_args()
+    if args.ncclfix:
+        configure_nccl()
+    if args.nccldebug:
+        debug_nccl()
     main(args)
