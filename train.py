@@ -19,47 +19,10 @@ import webdataset as wds
 from torch.nn import functional as F
 from torch.optim import lr_scheduler
 from torchvision import transforms
+import simple_cluster
 
 torchvision
 pp = pprint.PrettyPrinter(indent=4, depth=2).pprint
-
-
-def debug_nccl():
-    os.environ["NCCL_DEBUG"] = "INFO"
-    os.environ["NCCL_DEBUG_SUBSYS"] = "COLL"
-
-
-def configure_nccl():
-    os.environ["NCCL_IB_DISABLE"] = "1"
-    if "NCCL_SOCKET_IFNAME" not in os.environ:
-        mainif = os.popen("""/sbin/route -n | awk '$1=="0.0.0.0"{print $8; exit}'""").read().strip()
-        os.environ["NCCL_SOCKET_IFNAME"] = mainif
-    print(f"setting NCCL_SOCKET_IFNAME to {mainif}")
-
-
-def itrace(f):
-    @functools.wraps(f)
-    def g(*args, **kw):
-        result = f(*args, **kw)
-        print(f"{f.__name__}({args}, {kw}) => {result}")
-        return result
-
-    return g
-
-
-class FakeData(data.IterableDataset):
-    def __init__(self, batchsize=64, mode="train"):
-        super().__init__()
-        self.batchsize = batchsize
-        size = 1281000 if mode == "train" else 50000
-        self.size = size // batchsize
-
-    def __len__(self):
-        return self.size
-
-    def __iter__(self):
-        for i in range(self.size):
-            yield torch.randn((self.batchsize, 3, 224, 224)), torch.zeros(self.batchsize, dtype=torch.int64)
 
 
 def identity(x):
@@ -76,10 +39,7 @@ class ImagenetData(pl.LightningDataModule):
         print("val_urls = ", self.val_urls)
         self.batch_size = batch_size
         self.num_workers = workers
-        self.world_size = 0
-        if torch.distributed.is_initialized():
-            self.world_size = torch.distributed.get_world_size()
-        print("batch_size", self.batch_size, "num_workers", self.num_workers, "world_size", self.world_size)
+        print("batch_size", self.batch_size, "num_workers", self.num_workers)
 
     def make_transform(self, mode="train"):
         if mode == "train":
@@ -103,8 +63,10 @@ class ImagenetData(pl.LightningDataModule):
 
     def make_loader(self, urls, mode="train"):
 
-        if urls.startswith("fake:"):
-            return FakeData(batchsize=self.batch_size, mode=mode)
+        if isinstance(urls, str) and urls.startswith("fake:"):
+            xs = torch.randn((self.batch_size, 3, 224, 224))
+            ys = torch.zeros(self.batch_size, dtype=torch.int64)
+            return wds.MockDataset((xs, ys), 10000)
 
         if mode == "train":
             dataset_size = 1281167
@@ -130,13 +92,13 @@ class ImagenetData(pl.LightningDataModule):
             shuffle=False,
             num_workers=self.num_workers,
         )
+
         loader.length = dataset_size // self.batch_size
 
-        if self.world_size > 0:
-            number_of_batches = dataset_size // (self.batch_size * self.world_size)
-            print("# batches per node = ", number_of_batches)
-            loader = loader.repeat(2).slice(number_of_batches)
-            loader.length = number_of_batches
+        if mode == "train":
+            # ensure same number of batches in all clients
+            loader = loader.ddp_equalize(dataset_size // self.batch_size)
+            print("# loader length", len(loader))
 
         return loader
 
@@ -243,55 +205,6 @@ class ImageClassifier(pl.LightningModule):
         return parser
 
 
-def print_distributed_info():
-    if not torch.distributed.is_available():
-        print("distributed not available")
-        return
-    if not torch.distributed.is_initialized():
-        print("distributed not initialized")
-        return
-    print(
-        "backend",
-        torch.distributed.get_backend(),
-        "world_size",
-        torch.distributed.get_world_size(),
-        "rank",
-        torch.distributed.get_rank(),
-    )
-
-
-class SimpleCluster(pl.plugins.environments.ClusterEnvironment):
-    def __init__(self):
-        super().__init__()
-
-    def creates_children(self) -> bool:
-        return True
-
-    def master_address(self) -> str:
-        return os.environ["MASTER_ADDR"]
-
-    def master_port(self) -> int:
-        return int(os.environ.get("MASTER_PORT", 25666))
-
-    def world_size(self) -> int:
-        return int(os.environ["WORLD_SIZE"])
-
-    def set_world_size(self, size: int) -> None:
-        print(f"set_world_size ignored wants: {size} gets: {self.world_size()}")
-
-    def global_rank(self) -> int:
-        return int(os.environ["RANK"])
-
-    def set_global_rank(self, rank: int) -> None:
-        print(f"set_global_rank ignored wants: {rank} gets: {self.global_rank()}")
-
-    def local_rank(self) -> int:
-        return 0
-
-    def node_rank(self) -> int:
-        return 0
-
-
 def main(args):
     if args.verbose:
         pp(vars(args))
@@ -302,7 +215,7 @@ def main(args):
     model = ImageClassifier(**vars(args))
     plugs = []
     if args.accelerator == "ddp":
-        plugs.append(SimpleCluster())
+        plugs.append(simple_cluster.SimpleCluster())
     trainer = pl.Trainer.from_argparse_args(args, plugins=plugs)
     if args.evaluate:
         trainer.test(model, data)
@@ -321,7 +234,7 @@ if __name__ == "__main__":
     parser = ImageClassifier.add_model_specific_args(parser)
     args = parser.parse_args()
     if args.ncclfix:
-        configure_nccl()
+        simple_cluster.auto_configure_nccl()
     if args.nccldebug:
-        debug_nccl()
+        simple_cluster.debug_nccl()
     main(args)
