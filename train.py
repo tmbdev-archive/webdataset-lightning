@@ -108,7 +108,7 @@ class ImagenetData(pl.LightningDataModule):
         parser.add_argument("-b", "--batch-size", type=int, default=128)
         parser.add_argument("--workers", type=int, default=6)
         parser.add_argument("--bucket", default="./shards")
-        parser.add_argument("--shards", default="imagenet-train-{000000..000146}.tar")
+        parser.add_argument("--shards", default="imagenet-train-{000000..001281}.tar")
         parser.add_argument("--valshards", default="imagenet-val-{000000..000006}.tar")
         return parser
 

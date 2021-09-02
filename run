@@ -1,6 +1,6 @@
 #!/bin/bash
 
-nshards=147
+nshards=1282
 
 die() {
     echo "ERROR: $*"
