@@ -2,5 +2,7 @@ pytorch-lightning
 tensorboard
 ray[default]
 -e git://github.com/tmbdev/webdataset.git#egg=webdataset
--e git://github.com/PyTorchLightning/pytorch-lightning.git#egg=pytorch_lightning
--e git://github.com/ray-project/ray_lightning#egg=ray_lightning
+pytorch_lightning
+# -e git://github.com/PyTorchLightning/pytorch-lightning.git#egg=pytorch_lightning
+#-e git://github.com/PyTorchLightning/pytorch-lightning.git#egg=pytorch_lightning
+#-e git://github.com/ray-project/ray_lightning#egg=ray_lightning
