@@ -1,11 +1,7 @@
 #!/bin/bash
 
-<<<<<<< HEAD
 nshards=1282
-=======
-nshards=147
 image=wdslightning
->>>>>>> f0fdf0f52cf36854fce618fd3fdf46e07161e28f
 
 die() {
     echo "ERROR: $*"
@@ -52,6 +48,8 @@ cmd_train() { # run training using PyTorch lightning
 }
 
 cmd_spawn() { # run training using PyTorch lightning
+    check_shards
+    source venv/bin/activate
     set -x
     python3 train.py --gpus 2 --accelerator ddp_spawn "$@"
 }

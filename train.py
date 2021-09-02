@@ -98,7 +98,7 @@ class ImagenetData(pl.LightningDataModule):
         if mode == "train":
             # ensure same number of batches in all clients
             loader = loader.ddp_equalize(dataset_size // self.batch_size)
-            print("# loader length", len(loader))
+            # print("# loader length", len(loader))
 
         return loader
 
