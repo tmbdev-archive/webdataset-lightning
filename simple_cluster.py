@@ -1,5 +1,11 @@
 # -*- Python -*-
 
+#
+# Copyright (c) 2017-2023 NVIDIA CORPORATION. All rights reserved.
+# This file is part of the WebDataset library.
+# See the LICENSE file for licensing terms (BSD-style).
+#
+
 # A simple example of using WebDataset high performance distributed storage
 # for ImageNet training.  This uses the PyTorch Lightning framework.
 

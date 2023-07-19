@@ -1,3 +1,9 @@
+#
+# Copyright (c) 2017-2023 NVIDIA CORPORATION. All rights reserved.
+# This file is part of the WebDataset library.
+# See the LICENSE file for licensing terms (BSD-style).
+#
+
 import sys
 import os
 import os.path
