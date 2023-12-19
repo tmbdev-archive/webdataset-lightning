@@ -1,3 +1,15 @@
+# Thie repository has been archived. Please see the main webdataset repository for examples.
+
+```
+
+
+
+
+
+
+```
+
+
 # A small demonstration of using WebDataset with ImageNet and PyTorch Lightning
 
 This is a small repo illustrating how to use WebDataset on ImageNet.
